@@ -1,3 +1,6 @@
 <resources>
     <string name="app_name">Google Assistant</string>
+    <string name="first_message">Hello, how canI be of service?</string>
+    <string name="second_message">I am ready to help.</string>
+    <string name="OPEN_WEATHER_MAP_API_KEY">0fef5d9459e05dcd0a111302b3176337</string>
 </resources>

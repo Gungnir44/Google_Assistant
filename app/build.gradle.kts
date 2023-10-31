@@ -71,5 +71,13 @@ dependencies {
 
     implementation("org.jetbrains.kotlin:kotlinx-coroutines-core:1.3.7")
     implementation("org.jetbrains.kotlinx-coroutines-android:1.3.7")
+    //ML Kit Vision
+    implementation("com.google.android.gms:play-services-mlkit-text-recognition:19.0.0")
 
+    implementation("com.github.shubham0204:Text2Summary-Android:alpha-05")
+
+    implementation("com.theartofdev.edmodo:android-image-cropper:2.8.0")
+    //OpenWeatherMap
+    implementation("com.github.KwabenBerko:OpenWeatherMap-Android-Library:2.1.0")
+    implementation("the.bot.box:horoscope-api:{latest-version}")
 }
