@@ -68,5 +68,7 @@ class AssistantViewModel(val database: AssistantDao, application: Application) :
             database.clear()
         }
     }
+
+    }
 }
 

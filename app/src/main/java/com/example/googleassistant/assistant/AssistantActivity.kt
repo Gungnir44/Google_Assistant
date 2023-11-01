@@ -1,34 +1,50 @@
 package com.example.googleassistant.assistant
 
 //noinspection SuspiciousImport
+import android.Manifest
 import android.R
 import android.annotation.SuppressLint
 import android.bluetooth.BluetoothAdapter
 import android.content.ClipboardManager
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.hardware.camera2.CameraManager
 import android.media.Ringtone
 import android.media.RingtoneManager
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.os.Environment
+import android.os.Parcel
+import android.os.Parcelable
+import android.os.StrictMode
 import android.provider.Settings.Global.getString
+import android.provider.Telephony
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
 import android.speech.tts.TextToSpeech
+import android.telephony.SmsManager
 import android.util.Log
+import android.view.MotionEvent
 import android.view.View
 import android.view.ViewTreeObserver
+import android.widget.Toast
+import androidx.annotation.RequiresApi
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
 import androidx.databinding.DataBindingUtil
 import androidx.lifecycle.ViewModelProvider
 import com.example.googleassistant.data.AssistantDatabase
 import com.example.googleassistant.databinding.ActivityAssistantBinding
+import java.text.DateFormat
+import java.text.SimpleDateFormat
+import java.util.Calendar
 import java.util.Locale
 
 
-class AssistantActivity : AppCompatActivity() {
+class AssistantActivity() : AppCompatActivity(), Parcelable {
 
     private lateinit var binding: ActivityAssistantBinding
     private lateinit var assistantViewModel: AssistantViewModel
@@ -67,67 +83,100 @@ class AssistantActivity : AppCompatActivity() {
     @Suppress("DEPRECATION")
     private val imageDirectory = Environment.getExternalStorageState(Environment.DIRECTORY_PICTURES).toString()
 
+    constructor(parcel: Parcel) : this() {
+        recognizer = parcel.readParcelable(Intent::class.java.classLoader)!!
+        keeper = parcel.readString().toString()
+        REQUESTCALL = parcel.readInt()
+        SENDSMS = parcel.readInt()
+        READSMS = parcel.readInt()
+        SHAREAFILE = parcel.readInt()
+        SHAREATEXTFILE = parcel.readInt()
+        READCONTACTS = parcel.readInt()
+        CAPTUREPHOTO = parcel.readInt()
+        REQUEST_CODE_SELECT_DOC = parcel.readInt()
+        REQUEST_ENABLE_BT = parcel.readInt()
+        cameraID = parcel.readString().toString()
+        imageIndex = parcel.readInt()
+        imgUri = parcel.readParcelable(Uri::class.java.classLoader)!!
+    }
+
+    class OpenWeatherMapHelper(string: String) {
+    }
+
     @SuppressLint("ClickableViewAccessibility")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        overridePendingTransition(com.example.googleassistant.R.anim.non_movable, com.example.googleassistant.R.anim.non_movable)
+        overridePendingTransition(
+            com.example.googleassistant.R.anim.non_movable,
+            com.example.googleassistant.R.anim.non_movable
+        )
 
-        binding = DataBindingUtil.setContentView(this, com.example.googleassistant.R.layout.activity_assistant)
+        binding = DataBindingUtil.setContentView(
+            this,
+            com.example.googleassistant.R.layout.activity_assistant
+        )
 
         val application = requireNotNull(this).application
         val dataSource = AssistantDatabase.getInstance(application).assistantDao
         val viewModelFactory = AssistantViewModelFactory(dataSource, application)
 
-        assistantViewModel = ViewModelProvider(this, viewModelFactory).get(AssistantViewModel::class.java)
+        assistantViewModel =
+            ViewModelProvider(this, viewModelFactory).get(AssistantViewModel::class.java)
         val adapter = AssistantAdapter()
         binding.recyclerview.adapter = adapter
 
-        assistantViewModel.message.observe(this) { it?.Let{ adapter.data = it } }
+        assistantViewModel.message.observe(this) { it?.let { adapter.data = it } }
         binding.lifecycleOwner = this
         //animations
-        if(savedInstanceState == null){
+        if (savedInstanceState == null) {
             binding.assistantConstraintLayout.visibility = View.INVISIBLE
 
-            val viewTreeObserver: ViewTreeObserver = binding.assistantConstraintLayout.getViewTreeObserver()
-            if(viewTreeObserver.isAlive){
-                viewTreeObserver.addOnGlobalLayoutListener(object : ViewTreeObserver.OnGlobalLayoutListener{
+            val viewTreeObserver: ViewTreeObserver =
+                binding.assistantConstraintLayout.getViewTreeObserver()
+            if (viewTreeObserver.isAlive) {
+                viewTreeObserver.addOnGlobalLayoutListener(object :
+                    ViewTreeObserver.OnGlobalLayoutListener {
                     override fun onGlobalLayout() {
                         circularRevealActivity()
-                        binding.assistantConstraintLayout.getViewTreeObserver().removeOnGlobalLayoutListener(this)
+                        binding.assistantConstraintLayout.getViewTreeObserver()
+                            .removeOnGlobalLayoutListener(this)
                     }
                 })
             }
 
         }
         cameraManager = getSystemService(CAMERA_SERVICE) as CameraManager
-        try{
+        try {
             cameraID = cameraManager.cameraIdList[1]
             //0 back camera, 1 is front
-        }
-        catch (e: java.lang.Exception){
+        } catch (e: java.lang.Exception) {
             e.printStackTrace()
         }
         clipboardManager = getSystemService(CLIPBOARD_SERVICE) as ClipboardManager
-        ringtone = RingtoneManager.getRingtone(applicationContext, RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE))
+        ringtone = RingtoneManager.getRingtone(
+            applicationContext,
+            RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE)
+        )
         helper = OpenWeatherMapHelper(getString(R.string.OPEN_WEATHER_MAP_API_KEY))
 
         textToSpeech = TextToSpeech(this) { status ->
-            if(status == TextToSpeech.SUCCESS){
+            if (status == TextToSpeech.SUCCESS) {
                 val result: Int = textToSpeech.setLanguage(Locale.ENGLISH)
-                if(result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED){
+                if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
                     Log.e(logtts, "Language Not Supported")
-                }
-                else{
+                } else {
                     Log.e(logtts, "Language Supported")
                 }
-            }
-            else{
+            } else {
                 Log.e(logtts, "Initialization Failed")
             }
         }
         speechRecognizer = SpeechRecognizer.createSpeechRecognizer(this)
         val recognizerIntent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
-        recognizerIntent.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+        recognizerIntent.putExtra(
+            RecognizerIntent.EXTRA_LANGUAGE_MODEL,
+            RecognizerIntent.LANGUAGE_MODEL_FREE_FORM
+        )
         recognizerIntent.putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault())
         speechRecognizer.setRecognitionListener(object : RecognitionListener {
             override fun onReadyForSpeech(p0: Bundle?) {
@@ -159,7 +208,7 @@ class AssistantActivity : AppCompatActivity() {
                 if(data != null){
                     keeper = data[0]
                     Log.d(logkeeper, keeper)
-                    when{
+                    when {
                         keeper.contains("thanks") -> speak("You're welcome, is there anything else I can help with?")
                         keeper.contains("braille") -> speak("How may I assist you?")
                         keeper.contains("clear") -> assistantViewModel.onClear()
@@ -188,10 +237,12 @@ class AssistantActivity : AppCompatActivity() {
                         keeper.contains("medical") -> medicalApplication()
                         keeper.contains("joke") -> joke()
                         keeper.contains("question") -> question()
-                        keeper.contains("hello") || keeper.contains("hi") || keeper.contains("hey") -> speak("How can I be of service?")
-                        //keeper.contains("") -> ()
-                        //keeper.contains("") -> ()
-                        //keeper.contains("") -> ()
+                        keeper.contains("hello") || keeper.contains("hi") || keeper.contains("hey") -> speak(
+                            "How can I be of service?"
+                        )
+                        //keeper.contains("") -> () future functions
+                        //keeper.contains("") -> () future func
+                        //keeper.contains("") -> ()future func
                         else -> speak("I'm sorry, that is invalid or I did not hear you.")
                     }
                 }
@@ -205,10 +256,168 @@ class AssistantActivity : AppCompatActivity() {
                 TODO("Not yet implemented")
             }
 
+        })
+        binding.assistantActionButton.setOnTouchListener { view, motionEvent ->
+            when (motionEvent.action) {
+                MotionEvent.ACTION_UP -> {
+                    speechRecognizer.stopListening()
+                }
+
+                MotionEvent.ACTION_DOWN -> {
+                    textToSpeech.stop()
+                    speechRecognizer.startListening(recognizerIntent)
+                }
+            }
+            false
+        }
+        checkIfSpeechRecognizerAvailable()
+    }
+
+    private fun circularRevealActivity() {
+        TODO("Not yet implemented")
+    }
+
+    private fun checkIfSpeechRecognizerAvailable() {
+        if(SpeechRecognizer.isRecognitionAvailable(this)){
+            Log.d(logsr, "yes")
+        }
+        else{
+            Log.d(logsr, "false")
         }
     }
-    class OpenWeatherMapHelper(string: String) {
+
+    override fun writeToParcel(parcel: Parcel, flags: Int) {
+        parcel.writeParcelable(recognizer, flags)
+        parcel.writeString(keeper)
+        parcel.writeInt(REQUESTCALL)
+        parcel.writeInt(SENDSMS)
+        parcel.writeInt(READSMS)
+        parcel.writeInt(SHAREAFILE)
+        parcel.writeInt(SHAREATEXTFILE)
+        parcel.writeInt(READCONTACTS)
+        parcel.writeInt(CAPTUREPHOTO)
+        parcel.writeInt(REQUEST_CODE_SELECT_DOC)
+        parcel.writeInt(REQUEST_ENABLE_BT)
+        parcel.writeString(cameraID)
+        parcel.writeInt(imageIndex)
+        parcel.writeParcelable(imgUri, flags)
+    }
+
+    override fun describeContents(): Int {
+        return 0
+    }
+
+    companion object CREATOR : Parcelable.Creator<AssistantActivity> {
+        override fun createFromParcel(parcel: Parcel): AssistantActivity {
+            return AssistantActivity(parcel)
+        }
+
+        override fun newArray(size: Int): Array<AssistantActivity?> {
+            return arrayOfNulls(size)
+        }
+    }
+    //  *called functions list* //
+    fun speak(text: String) {
+        textToSpeech.speak(text, TextToSpeech.QUEUE_FLUSH, null, "")
+        assistantViewModel.sendMessageToDatabase(keeper, text)
+    }
+    fun getDate(){
+        val calendar = Calendar.getInstance()
+        val formattedDate = DateFormat.getDateInstance(DateFormat.FULL).format(calendar.time)
+        val splitDate = formattedDate.split(",").toTypedArray()
+        val date = splitDate[1].trim{ it <= ' ' }
+        speak("Today's date is $date")
+    }
+    @SuppressLint("SimpleDateFormat")
+    fun getTime(){
+        val calendar = Calendar.getInstance()
+        val format = SimpleDateFormat("HH:mm")
+        val time = String = format.format(calendar.getTime())
+        speak("the current time is $time")
+    }
+    private fun makeAPhoneCall(){
+        val keeperSplit = keeper.replace(" ".toRegex(), "").split("o").toTypedArray()
+        val  number = keeperSplit[2]
+        if(number.trim { it <= ' ' }.isNotEmpty()){
+            if(ContextCompat.checkSelfPermission(this, Manifest.permission.CALL_PHONE)!=PackageManager.PERMISSION_GRANTED){
+                ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.CALL_PHONE), REQUESTCALL)
+            }
+            else{
+                val dial = "tel:$number"
+                speak("Calling $number")
+                startActivity(Intent(Intent.ACTION_CALL, Uri.parse(dial)))
+            }
+        }
+        else{
+            Toast.makeText(this, "Enter Phone Number", Toast.LENGTH_SHORT).show()
+        }
+    }
+    private fun sendSMS(){
+        Log.d("keeper", "Done0")
+        if(ContextCompat.checkSelfPermission(this, Manifest.permission.SEND_SMS)!=PackageManager.PERMISSION_GRANTED){
+            ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.SEND_SMS), SENDSMS)
+            Log.d("keeper", "Done1")
+        }
+        else{
+            Log.d("keeper", "Done2")
+            val keeperReplaced = keeper.replace(" ".toRegex(), "")
+            val number = keeperReplaced.split("o").toTypedArray()[1].split("t").toTypedArray()[0]
+            val message = keeper.split("that").toTypedArray()[1]
+            Log.d("chk", number + message)
+            val  mySmsManager = SmsManager.getDefault()
+            mySmsManager.sendTextMessage(number.trim { it <= ' ' }, null, message.trim { it <= ' ' }, null, null)
+            speak("Message sent that $message")
+        }
+    }
+    @SuppressLint("NewApi", "Recycle")
+    @RequiresApi(Build.VERSION_CODES.O)
+    private fun readSMS(){
+        if(ContextCompat.checkSelfPermission(this, Manifest.permission.READ_SMS)!=PackageManager.PERMISSION_GRANTED){
+            ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.READ_SMS), READSMS)
+        }
+        else{
+            val cursor = contentResolver.query(Uri.parse("content://sms"), null, null, null)
+            cursor!!.moveToFirst()
+            speak("Your last message was " + cursor.getString(12))
+        }
+    }
+    private fun openMessages(){
+        val intent = packageManager.getLaunchIntentForPackage(Telephony.Sms.getDefaultSmsPackage(this))
+        intent?.let { startActivity(it) }
+        speak("Opening Messages")
+    }
+    private fun openFacebook(){
+        val intent = packageManager.getLaunchIntentForPackage("com.facebook.katana")
+        intent?.let { startActivity(it) }
+        speak("Opening Facebook")
+    }
+    private fun openGmail(){
+        val intent = packageManager.getLaunchIntentForPackage("com.google.gm")
+        intent?.let { startActivity(it) }
+        speak("Opening Gmail")
+    }
+    private fun shareAFile(){
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_EXTERNAL_STORAGE)!=PackageManager.PERMISSION_GRANTED){
+            ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE, Manifest.permission.WRITE_EXTERNAL_STORAGE), SHAREAFILE)
+        }
+        else{
+            val builder = StrictMode.VmPolicy.Builder()
+            StrictMode.setVmPolicy(builder.build())
+            val myFileIntent.type = "application/pdf"
+            startActivityForResult(myFileIntent, REQUEST_CODE_SELECT_DOC)
+        }
+    }
+    private fun shareATextMessage(){
+        if(ContextCompat.checkSelfPermission(this, Manifest.permission.READ_EXTERNAL_STORAGE)!=PackageManager.PERMISSION_GRANTED){
+            ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE, Manifest.permission.WRITE_EXTERNAL_STORAGE), SHAREATEXTFILE)
+        }
+        else{
+
+        }
     }
 }
+
+
+
 
 
