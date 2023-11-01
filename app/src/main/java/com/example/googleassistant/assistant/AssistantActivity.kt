@@ -7,6 +7,7 @@ import android.annotation.SuppressLint
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothManager
+import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -240,9 +241,7 @@ class AssistantActivity() : AppCompatActivity(), Parcelable {
                         keeper.contains("medical") -> medicalApplication()
                         keeper.contains("joke") -> joke()
                         keeper.contains("question") -> question()
-                        keeper.contains("hello") || keeper.contains("hi") || keeper.contains("hey") -> speak(
-                            "How can I be of service?"
-                        )
+                        keeper.contains("hello") || keeper.contains("hi") || keeper.contains("hey") -> speak("How can I be of service?")
                         //keeper.contains("") -> () future functions
                         //keeper.contains("") -> () future func
                         //keeper.contains("") -> ()future func
@@ -484,7 +483,46 @@ class AssistantActivity() : AppCompatActivity(), Parcelable {
             var text = ""
             var count = 1
             val devices: Set<BluetoothDevice> = bluetoothAdapter.getBondedDevices()
-
+            for(device in devices){
+                text += "\nDevice: $count ${device.name}, $device"
+                count += 1
+            }
+            speak(text)
+        }
+        else{
+            speak("Please turn on bluetooth to get paired devices")
+        }
+    }
+    private fun turnOnFlash(){
+        try {
+            if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.M){
+                cameraManager.setTorchMode(cameraID, true)
+                speak("Flash turned on")
+            }
+        }
+        catch (e: java.lang.Exception){
+            e.printStackTrace()
+            speak("Error Occurred")
+        }
+    }
+    private fun turnOffFlash(){
+        try {
+            if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.M){
+                cameraManager.setTorchMode(cameraID, false)
+                speak("Flash turned off")
+            }
+        }
+        catch (e: java.lang.Exception){
+            e.printStackTrace()
+            speak("Error Occurred")
+        }
+    }
+    fun clipBoardCopy(){
+        val data = keeper.split("that").toTypedArray()[1].trim{ it <= ' ' }
+        if(!data.isEmpty()){
+            val clipData = ClipData.newPlainText("text", data)
+            clipboardManager.setPrimaryClip(clipData)
+            speak("Data copied to clipboard that is $data")
         }
     }
 }
