@@ -5,6 +5,8 @@ import android.Manifest
 import android.R
 import android.annotation.SuppressLint
 import android.bluetooth.BluetoothAdapter
+import android.bluetooth.BluetoothDevice
+import android.bluetooth.BluetoothManager
 import android.content.ClipboardManager
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -18,6 +20,7 @@ import android.os.Environment
 import android.os.Parcel
 import android.os.Parcelable
 import android.os.StrictMode
+import android.provider.ContactsContract
 import android.provider.Settings.Global.getString
 import android.provider.Telephony
 import android.speech.RecognitionListener
@@ -368,6 +371,7 @@ class AssistantActivity() : AppCompatActivity(), Parcelable {
             mySmsManager.sendTextMessage(number.trim { it <= ' ' }, null, message.trim { it <= ' ' }, null, null)
             speak("Message sent that $message")
         }
+        speak("Is there anything else you would like me to do?")
     }
     @SuppressLint("NewApi", "Recycle")
     @RequiresApi(Build.VERSION_CODES.O)
@@ -406,12 +410,80 @@ class AssistantActivity() : AppCompatActivity(), Parcelable {
             val myFileIntent.type = "application/pdf"
             startActivityForResult(myFileIntent, REQUEST_CODE_SELECT_DOC)
         }
+        speak("Sharing file")
     }
     private fun shareATextMessage(){
         if(ContextCompat.checkSelfPermission(this, Manifest.permission.READ_EXTERNAL_STORAGE)!=PackageManager.PERMISSION_GRANTED){
             ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE, Manifest.permission.WRITE_EXTERNAL_STORAGE), SHAREATEXTFILE)
         }
         else{
+            val builder = StrictMode.VmPolicy.Builder()
+            StrictMode.setVmPolicy(builder.build())
+            val message = keeper.split("that").toTypedArray()[1]
+            val intentShare = Intent(Intent.ACTION_SEND)
+            intentShare.type = "text/plain"
+            intentShare.putExtra(Intent.EXTRA_TEXT, message)
+            startActivity(Intent.createChooser(intentShare, "Sharing Text"))
+        }
+        speak("Sharing text")
+    }
+    private fun callContact() {
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_CONTACTS) != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.READ_CONTACTS, Manifest.permission.WRITE_CONTACTS), READCONTACTS)
+        }
+        else {
+            val name = keeper.split("call").toTypedArray()[1].trim{ it <= ' ' }
+            Log.d("chk", name)
+            try {
+                val cursor = contentResolver.query(ContactsContract.CommonDataKinds.Phone.CONTENT_URI, arrayOf(ContactsContract.CommonDataKinds.Phone.NUMBER, ContactsContract.CommonDataKinds.Phone.TYPE), "DISPLAY_NAME = '$name'", null, null)
+                cursor!!.moveToFirst()
+                val number = cursor.getString(0)
+                if(number.trim { it <= ' ' }.isNotEmpty()){
+                    if(ContextCompat.checkSelfPermission(this, Manifest.permission.CALL_PHONE)!=PackageManager.PERMISSION_GRANTED){
+                        ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.CALL_PHONE), REQUESTCALL)
+                    }
+                    else{
+                        val dial = "tel:$number"
+                        startActivity(Intent(Intent.ACTION_CALL, Uri.parse(dial)))
+                    }
+                }
+                else{
+                    Toast.makeText(this, "Enter Phone Number", Toast.LENGTH_SHORT).show()
+                }
+            }
+            catch (e: Exception){
+                e.printStackTrace()
+                speak("Something went wrong, please try again")
+            }
+        }
+    }
+    @RequiresApi(Build.VERSION_CODES.S)
+    private fun turnOnBluetooth(){
+        if(!bluetoothAdapter.isEnabled()){
+            speak("Turning on bluetooth service")
+            val intent = Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE)
+            startActivityForResult(intent, REQUEST_ENABLE_BT)
+        }
+        else{
+            speak("Bluetooth service is already On")
+        }
+    }
+    @RequiresApi(Build.VERSION_CODES.S)
+    private fun turnOffBluetooth(){
+        if(bluetoothAdapter.isEnabled()){
+            bluetoothAdapter.disable()
+            speak("Turning off bluetooth service")
+        }
+        else{
+            speak("Bluetooth service is already Off")
+        }
+    }
+    private fun getAllPairedDevices(){
+        if(bluetoothAdapter.isEnabled()){
+            speak("Paired Bluetooth Devices are ")
+            var text = ""
+            var count = 1
+            val devices: Set<BluetoothDevice> = bluetoothAdapter.getBondedDevices()
 
         }
     }
