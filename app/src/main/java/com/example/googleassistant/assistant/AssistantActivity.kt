@@ -1,3 +1,5 @@
+@file:Suppress("KotlinConstantConditions")
+
 package com.example.googleassistant.assistant
 
 import com.google.android.gms.common.api.Response
@@ -16,6 +18,7 @@ import android.content.ClipboardManager
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.hardware.camera2.CameraManager
 import android.media.Ringtone
 import android.media.RingtoneManager
@@ -53,6 +56,7 @@ import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.text.TextRecognition
 
 import java.io.File
+import java.io.FileNotFoundException
 import java.io.IOException
 import java.sql.Ref
 import java.text.DateFormat
@@ -68,6 +72,7 @@ import java.lang.StringBuilder
 //import com.kwabenaberko.openweathermaplib.implementation.OpenWeatherMapHelper;
 //import com.kwabenaberko.openweathermaplib.implementation.callback.CurrentWeatherCallback;
 
+import com.theartofdev.edmodo.cropper.CropImage;
 
 class AssistantActivity() : AppCompatActivity(), Parcelable {
 
@@ -805,8 +810,47 @@ class AssistantActivity() : AppCompatActivity(), Parcelable {
             }
         }
     }
+    @Deprecated("Deprecated in Java")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
+
+        if(requestCode == REQUEST_CODE_SELECT_DOC && resultCode == RESULT_OK){
+            val filePath = data!!.data!!.path
+            Log.d("chk", "path: $filePath")
+            val file = File(filePath)
+            val intentShare = Intent(Intent.ACTION_SEND)
+            intentShare.type = "application/pdf"
+            intentShare.putExtra(Intent.EXTRA_STREAM, Uri.parse("file://$file"))
+            startActivity(Intent.createChooser(intentShare, "Share the file..."))
+        }
+        if(requestCode == REQUEST_ENABLE_BT){
+            if(resultCode == RESULT_OK){
+                speak("Bluetooth is on")
+            }
+            else{
+                speak("Was not able to turn on bluetooth service")
+            }
+        }
+        if(requestCode == CropImage.PICK_IMAGECHOOSER_REQUEST_CODE && requestCode == RESULT_OK){
+            val imageUri = CropImage.getPickImageResultUri(this, data)
+            imgUri = imageUri
+            startCrop(imageUri)
+        }
+        if(requestCode == CropImage.CROP_IMAGE_ACTIVITY_REQUEST_CODE){
+            val result: CropImage.ActivityResult = CropImage.getActivityResult(data)
+            if(requestCode == RESULT_OK){
+                imgUri = result.uri
+                try{
+                    val inputStream = contentResolver.openInputStream(imgUri)
+                    val bitmap = BitmapFactory.decodeStream(inputStream)
+                    getTextFromBitMap(bitmap)
+                }
+                catch (e: FileNotFoundException){
+                    e.printStackTrace()
+                }
+            Toast.makeText(this, "Image captured", Toast.LENGTH_SHORT).show()
+            }
+        }
     }
 }
 
