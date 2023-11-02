@@ -1,4 +1,4 @@
-@file:Suppress("KotlinConstantConditions")
+@file:Suppress("KotlinConstantConditions", "DEPRECATION")
 
 package com.example.googleassistant.assistant
 
@@ -10,6 +10,7 @@ import com.google.firebase.crashlytics.buildtools.reloc.org.apache.commons.codec
 //noinspection SuspiciousImport
 import android.Manifest
 import android.R
+import android.animation.Animator
 import android.annotation.SuppressLint
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
@@ -17,6 +18,7 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.content.res.Resources
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.hardware.camera2.CameraManager
@@ -26,6 +28,7 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.Environment
+import android.os.Environment.*
 import android.os.Parcel
 import android.os.Parcelable
 import android.os.StrictMode
@@ -38,8 +41,10 @@ import android.speech.SpeechRecognizer
 import android.speech.tts.TextToSpeech
 import android.telephony.SmsManager
 import android.util.Log
+import android.util.TypedValue
 import android.view.MotionEvent
 import android.view.View
+import android.view.ViewAnimationUtils
 import android.view.ViewTreeObserver
 import android.widget.Toast
 
@@ -65,6 +70,7 @@ import java.util.Calendar
 import java.util.Locale
 import java.lang.Exception
 import java.lang.StringBuilder
+import kotlin.math.max
 
 //import com.kwabenaberko.openweathermaplib.model.currentweather.CurrentWeather;
 //import com.kwabenaberko.openweathermaplib.constant.Languages;
@@ -72,7 +78,7 @@ import java.lang.StringBuilder
 //import com.kwabenaberko.openweathermaplib.implementation.OpenWeatherMapHelper;
 //import com.kwabenaberko.openweathermaplib.implementation.callback.CurrentWeatherCallback;
 
-import com.theartofdev.edmodo.cropper.CropImage;
+//import com.theartofdev.edmodo.cropper.CropImage;
 
 class AssistantActivity() : AppCompatActivity(), Parcelable {
 
@@ -112,7 +118,7 @@ class AssistantActivity() : AppCompatActivity(), Parcelable {
 
     @Suppress("DEPRECATION")
     private val imageDirectory =
-        Environment.getExternalStorageState(Environment.DIRECTORY_PICTURES).toString()
+        getExternalStorageState(DIRECTORY_PICTURES).toString()
 
     constructor(parcel: Parcel) : this() {
         recognizer = parcel.readParcelable(Intent::class.java.classLoader)!!
@@ -176,7 +182,7 @@ class AssistantActivity() : AppCompatActivity(), Parcelable {
         try {
             cameraID = cameraManager.cameraIdList[1]
             //0 back camera, 1 is front
-        } catch (e: java.lang.Exception) {
+        } catch (e: Exception) {
             e.printStackTrace()
         }
         clipboardManager = getSystemService(CLIPBOARD_SERVICE) as ClipboardManager
@@ -462,7 +468,7 @@ class AssistantActivity() : AppCompatActivity(), Parcelable {
             val builder = StrictMode.VmPolicy.Builder()
             StrictMode.setVmPolicy(builder.build())
             val myFileIntent.type = "application/pdf"
-            startActivityForResult(myFileIntent, REQUEST_CODE_SELECT_DOC)
+            this.startActivityForResult(myFileIntent, REQUEST_CODE_SELECT_DOC)
         }
         speak("Sharing file")
     }
@@ -574,7 +580,7 @@ class AssistantActivity() : AppCompatActivity(), Parcelable {
             speak("Paired Bluetooth Devices are ")
             var text = ""
             var count = 1
-            val devices: Set<BluetoothDevice> = bluetoothAdapter.getBondedDevices()
+            val devices: Set<BluetoothDevice> = bluetoothAdapter.bondedDevices
             for (device in devices) {
                 text += "\nDevice: $count ${device.name}, $device"
                 count += 1
@@ -592,7 +598,7 @@ class AssistantActivity() : AppCompatActivity(), Parcelable {
                 cameraManager.setTorchMode(cameraID, true)
                 speak("Flash turned on")
             }
-        } catch (e: java.lang.Exception) {
+        } catch (e: Exception) {
             e.printStackTrace()
             speak("Error Occurred")
         }
@@ -605,7 +611,7 @@ class AssistantActivity() : AppCompatActivity(), Parcelable {
                 cameraManager.setTorchMode(cameraID, false)
                 speak("Flash turned off")
             }
-        } catch (e: java.lang.Exception) {
+        } catch (e: Exception) {
             e.printStackTrace()
             speak("Error Occurred")
         }
@@ -641,7 +647,8 @@ class AssistantActivity() : AppCompatActivity(), Parcelable {
                 arrayOf(Manifest.permission.CAMERA, Manifest.permission.WRITE_EXTERNAL_STORAGE),
                 CAPTUREPHOTO
             )
-        } else {
+        }
+        else {
             val builder = StrictMode.VmPolicy.Builder()
             StrictMode.setVmPolicy(builder.build())
             imageIndex++
@@ -693,10 +700,10 @@ class AssistantActivity() : AppCompatActivity(), Parcelable {
             ).show()
         }
     }
-    private fun summarizeText(text: String): String? {
+    private fun summarizeText(text: String): String {
         val summary: Ref.ObjectRef<*> = Ref.ObjectRef
         summary.element = Text2Summary.Companion.summarize(text, 0.4f)
-        return summary.element as String
+        return summary.element
     }
     private fun setAlarm() {
 
@@ -831,12 +838,13 @@ class AssistantActivity() : AppCompatActivity(), Parcelable {
                 speak("Was not able to turn on bluetooth service")
             }
         }
-        if(requestCode == CropImage.PICK_IMAGECHOOSER_REQUEST_CODE && requestCode == RESULT_OK){
+        // * WILL IMPLEMENT AFTER FINDING ISSUE WITH API INTEGRATION * //
+        /*if(requestCode == CropImage.PICK_IMAGECHOOSER_REQUEST_CODE && requestCode == RESULT_OK){
             val imageUri = CropImage.getPickImageResultUri(this, data)
             imgUri = imageUri
             startCrop(imageUri)
-        }
-        if(requestCode == CropImage.CROP_IMAGE_ACTIVITY_REQUEST_CODE){
+        }*/
+        /*if(requestCode == CropImage.CROP_IMAGE_ACTIVITY_REQUEST_CODE){
             val result: CropImage.ActivityResult = CropImage.getActivityResult(data)
             if(requestCode == RESULT_OK){
                 imgUri = result.uri
@@ -850,6 +858,56 @@ class AssistantActivity() : AppCompatActivity(), Parcelable {
                 }
             Toast.makeText(this, "Image captured", Toast.LENGTH_SHORT).show()
             }
+        }*/
+    }
+    /*private fun startCrop(Uri){
+        CropImage.activity(imgUri).setGuidelines(CropImageView.Guidelines.ON).setMultiTouchEnabled(true).start(this)
+    }*/
+    private fun circularRevealActivity(){
+        val cx: Int = binding.assistantConstraintLayout.right - getDips(44)
+        val cy: Int = binding.assistantConstraintLayout.bottom - getDips(44)
+        val finalRadius: Int = max(binding.assistantConstraintLayout.width, binding.assistantConstraintLayout.height)
+        val circularReveal = ViewAnimationUtils.createCircularReveal(binding.assistantConstraintLayout, cx, cy, 0f, finalRadius.toFloat())
+        circularReveal.duration = 1250
+        binding.assistantConstraintLayout.visibility = View.VISIBLE
+        circularReveal.start()
+    }
+    private fun getDips(dps: Int): Int {
+        val resources: Resources = resources
+        return TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, dps.toFloat(), resources.displayMetrics).toInt()
+    }
+    @SuppressLint("ObsoleteSdkInt")
+    override fun onBackPressed() {
+        if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP){
+            val cx: Int = binding.assistantConstraintLayout.width - getDips(44)
+            val cy: Int = binding.assistantConstraintLayout.height - getDips(44)
+            val finalRadius: Int =
+                binding.assistantConstraintLayout.width.coerceAtLeast(binding.assistantConstraintLayout.height)
+            val circularReveal = ViewAnimationUtils.createCircularReveal(binding.assistantConstraintLayout, cx, cy, finalRadius.toFloat(), 0f)
+            circularReveal.addListener(object : Animator.AnimatorListener{
+                override fun onAnimationStart(animation: Animator) {
+                    TODO("Not yet implemented")
+                }
+
+                override fun onAnimationEnd(animation: Animator) {
+                    binding.assistantConstraintLayout.visibility = View.INVISIBLE
+                    finish()
+                }
+
+                override fun onAnimationCancel(animation: Animator) {
+                    TODO("Not yet implemented")
+                }
+
+                override fun onAnimationRepeat(animation: Animator) {
+                    TODO("Not yet implemented")
+                }
+
+            })
+            circularReveal.duration =1250
+            circularReveal.start()
+        }
+        else{
+            super.onBackPressed()
         }
     }
 }
